@@ -1,6 +1,7 @@
 import pg from 'pg';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
+import bcrypt from 'bcrypt';
 
 dotenv.config();
 
@@ -17,8 +18,8 @@ const createTables = async () => {
 
   CREATE TABLE Users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(100) NOT NULL,
-    password VARCHAR(100) NOT NULL
+    username VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL
   );
 
   CREATE TABLE Products (
@@ -39,12 +40,23 @@ const createTables = async () => {
 };
 
 const createUser = async (username, password) => {
-  const SQL = `
+  const ecryptPassword = async (password) => {
+    try {
+      const hash = await bcrypt.hash(password, 10);
+      return hash;
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  };
+
+  try {
+    const hashedPassword = await ecryptPassword(password);
+    const SQL = `
     INSERT INTO Users(username, password)
-    VALUES ('${username}', '${password}')
+    VALUES ('${username}', '${hashedPassword}')
     RETURNING *
     `;
-  try {
     const response = await client.query(SQL);
     return response.rows;
   } catch (error) {
@@ -89,6 +101,7 @@ const fetchUser = async () => {
     return response.rows;
   } catch {
     console.log(chalk.red(error));
+    throw error;
   }
 };
 
@@ -101,25 +114,28 @@ const fetchProduct = async () => {
     return response.rows;
   } catch {
     console.log(chalk.red(error));
+    throw error;
   }
 };
 
-const fetchFavortites = async () => {
+const fetchFavortites = async (user_id) => {
   const SQL = `
-      SELECT * FROM Favorites
+      SELECT * FROM Favorites 
+      WHERE user_id = '${user_id}'
       `;
   try {
     const response = await client.query(SQL);
     return response.rows;
   } catch {
     console.log(chalk.red(error));
+    throw error;
   }
 };
 
-const destroyFavorite = async (product_id, user_id) => {
+const destroyFavorite = async (user_id, favorite_id) => {
   const SQL = `
     DELETE FROM Favorites
-    WHERE product_id = '${product_id}' AND user_id= '${user_id}'  
+    WHERE id = '${favorite_id}' AND user_id= '${user_id}'  
     `;
   const response = await client.query(SQL);
   return response.rows;
